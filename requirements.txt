@@ -22,7 +22,7 @@ PyScreeze==1
 python-dateutil==2.9.0
 pytweening==1.0.4
 six==1.16.0
-keyboard=0.13.5
-pyautogui=0.9.54
-mss=9.0.2
-tk=0.1.0
+keyboard==0.13.5
+pyautogui==0.9.54
+mss==9.0.2
+tk==0.1.0
