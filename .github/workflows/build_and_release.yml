@@ -9,7 +9,10 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v2
@@ -25,7 +28,12 @@ jobs:
           pip install pyinstaller
           pip install -r requirements.txt
 
-      - name: Build with PyInstaller
+      - name: Build with PyInstaller (Windows)
+        if: matrix.os == 'windows-latest'
+        run: pyinstaller --onefile --noconsole main.py --name kb-mouse
+
+      - name: Build with PyInstaller (macOS)
+        if: matrix.os == 'macos-latest'
         run: pyinstaller --onefile --noconsole main.py --name kb-mouse
 
       - name: Create Release
@@ -39,12 +47,24 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload Release Asset
+      - name: Upload Windows Release Asset
+        if: matrix.os == 'windows-latest'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./dist/kb-mouse.exe
-          asset_name: kb-mouse.exe
+          asset_name: kb-mouse-windows.exe
+          asset_content_type: application/octet-stream
+
+      - name: Upload macOS Release Asset
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/kb-mouse
+          asset_name: kb-mouse-macos
           asset_content_type: application/octet-stream
