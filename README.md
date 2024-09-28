@@ -7,3 +7,11 @@ pip install opencv-python numpy pyautogui keyboard mss
 
 python mouse.py
 ```
+
+## local build
+
+```bash
+./local_build_test.bat
+# deactivate venv after test
+deactivate
+```
