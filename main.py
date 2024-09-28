@@ -1,5 +1,3 @@
-# mouse.py
-
 import cv2
 import numpy as np
 import pyautogui
@@ -22,7 +20,25 @@ def capture_screen():
         return np.array(sct_img)
 
 def find_nearest_action_point(image):
-    # This is a placeholder function. Implement your OpenCV logic here.
+    # Convert the image to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    # Use Canny edge detection
+    edges = cv2.Canny(blurred, 50, 150)
+    # Find contours
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Find the largest contour
+    if contours:
+        largest_contour = max(contours, key=cv2.contourArea)
+        # Get the center of the largest contour
+        M = cv2.moments(largest_contour)
+        if M["m00"] != 0:
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+            return (cx, cy)
+
+    # If no contours found, return the center of the image
     height, width = image.shape[:2]
     return (width // 2, height // 2)
 
@@ -41,7 +57,7 @@ def main():
                 break
             elif keyboard.is_pressed('insert'):
                 pyautogui.click()
-            elif keyboard.is_pressed('home'):
+            elif keyboard.is_pressed('pagedown'):
                 screen = capture_screen()
                 x, y = find_nearest_action_point(screen)
                 smooth_move(x, y)
