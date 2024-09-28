@@ -24,17 +24,22 @@ def find_action_points(image):
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blurred, 50, 150)
     
-    # Find contours
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Use HoughCircles to detect circular objects
+    circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, 1, 20,
+                               param1=50, param2=30, minRadius=10, maxRadius=40)
     
     action_points = []
-    for contour in contours:
-        if cv2.contourArea(contour) > 100:  # Adjust this threshold as needed
-            M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                action_points.append((cx, cy))
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+        for i in circles[0, :]:
+            action_points.append((i[0], i[1]))
+    
+    # Also detect corners
+    corners = cv2.goodFeaturesToTrack(gray, 100, 0.01, 10)
+    if corners is not None:
+        for corner in corners:
+            x, y = corner.ravel()
+            action_points.append((int(x), int(y)))
     
     return action_points
 
@@ -55,11 +60,16 @@ def find_nearest_point_in_direction(current_pos, action_points, direction):
         return min(valid_points, key=lambda p: ((p[0]-x)**2 + (p[1]-y)**2)**0.5)
     return None
 
+def is_caps_lock_on():
+    return keyboard.is_pressed('capslock')
+
 def main():
     screen_width, screen_height = pyautogui.size()
+    step = 50  # Step size for incremental movement
     action_points = []
 
-    print("Hold ALT and use ARROW keys to move the mouse to nearest action point.")
+    print("Hold ALT and use ARROW keys to move the mouse.")
+    print("Turn Caps Lock ON and use ALT + ARROW keys to jump to nearest action point.")
     print("ALT + Insert key for left click.")
     print("ALT + Page Down to refresh action points.")
     print("Press 'ALT + q' to quit.")
@@ -74,7 +84,9 @@ def main():
                 screen = capture_screen()
                 action_points = find_action_points(screen)
                 print(f"Found {len(action_points)} action points")
-            else:
+            elif keyboard.is_pressed('up') or keyboard.is_pressed('down') or \
+                 keyboard.is_pressed('left') or keyboard.is_pressed('right'):
+
                 current_pos = pyautogui.position()
                 direction = None
                 if keyboard.is_pressed('up'):
@@ -85,11 +97,21 @@ def main():
                     direction = 'left'
                 elif keyboard.is_pressed('right'):
                     direction = 'right'
-                
-                if direction:
+
+                if is_caps_lock_on() and action_points:
                     nearest_point = find_nearest_point_in_direction(current_pos, action_points, direction)
                     if nearest_point:
                         smooth_move(*nearest_point)
+                else:
+                    x, y = current_pos
+                    if direction == 'up':
+                        smooth_move(x, max(0, y - step))
+                    elif direction == 'down':
+                        smooth_move(x, min(screen_height, y + step))
+                    elif direction == 'left':
+                        smooth_move(max(0, x - step), y)
+                    elif direction == 'right':
+                        smooth_move(min(screen_width, x + step), y)
 
         cv2.waitKey(1)
 
