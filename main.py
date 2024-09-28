@@ -4,8 +4,9 @@ import cv2
 import numpy as np
 import pyautogui
 import keyboard
+from mss import mss
 
-def smooth_move(x, y, speed=20):
+def smooth_move(x, y, speed=30):
     current_x, current_y = pyautogui.position()
     steps = max(abs(x - current_x), abs(y - current_y)) // speed
     for i in range(steps):
@@ -15,23 +16,13 @@ def smooth_move(x, y, speed=20):
         cv2.waitKey(1)
 
 def capture_screen():
-    screenshot = pyautogui.screenshot()
-    return cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    with mss() as sct:
+        monitor = sct.monitors[0]
+        sct_img = sct.grab(monitor)
+        return np.array(sct_img)
 
 def find_nearest_action_point(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 100, 200)
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if contours:
-        # Find the largest contour
-        largest_contour = max(contours, key=cv2.contourArea)
-        M = cv2.moments(largest_contour)
-        if M["m00"] != 0:
-            cx = int(M["m10"] / M["m00"])
-            cy = int(M["m01"] / M["m00"])
-            return (cx, cy)
-    # If no contours found, return center of image
+    # This is a placeholder function. Implement your OpenCV logic here.
     height, width = image.shape[:2]
     return (width // 2, height // 2)
 
@@ -44,10 +35,6 @@ def main():
     print("ALT + Home key to move to nearest action point.")
     print("Press 'ALT + q' to quit.")
 
-    # Create a blank image to simulate screen capture
-    screen = capture_screen()
-    nearest_point = find_nearest_action_point(screen)
-
     while True:
         if keyboard.is_pressed('alt'):
             if keyboard.is_pressed('q'):
@@ -55,7 +42,7 @@ def main():
             elif keyboard.is_pressed('insert'):
                 pyautogui.click()
             elif keyboard.is_pressed('home'):
-                # Simulate finding nearest action point
+                screen = capture_screen()
                 x, y = find_nearest_action_point(screen)
                 smooth_move(x, y)
             elif keyboard.is_pressed('up'):
