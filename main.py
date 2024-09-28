@@ -19,36 +19,49 @@ def capture_screen():
         sct_img = sct.grab(monitor)
         return np.array(sct_img)
 
-def find_nearest_action_point(image):
-    # Convert the image to grayscale
+def find_action_points(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # Apply Gaussian blur to reduce noise
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    # Use Canny edge detection
     edges = cv2.Canny(blurred, 50, 150)
+    
     # Find contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # Find the largest contour
-    if contours:
-        largest_contour = max(contours, key=cv2.contourArea)
-        # Get the center of the largest contour
-        M = cv2.moments(largest_contour)
-        if M["m00"] != 0:
-            cx = int(M["m10"] / M["m00"])
-            cy = int(M["m01"] / M["m00"])
-            return (cx, cy)
+    
+    action_points = []
+    for contour in contours:
+        if cv2.contourArea(contour) > 100:  # Adjust this threshold as needed
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                action_points.append((cx, cy))
+    
+    return action_points
 
-    # If no contours found, return the center of the image
-    height, width = image.shape[:2]
-    return (width // 2, height // 2)
+def find_nearest_point_in_direction(current_pos, action_points, direction):
+    x, y = current_pos
+    valid_points = []
+    
+    if direction == 'up':
+        valid_points = [p for p in action_points if p[1] < y]
+    elif direction == 'down':
+        valid_points = [p for p in action_points if p[1] > y]
+    elif direction == 'left':
+        valid_points = [p for p in action_points if p[0] < x]
+    elif direction == 'right':
+        valid_points = [p for p in action_points if p[0] > x]
+    
+    if valid_points:
+        return min(valid_points, key=lambda p: ((p[0]-x)**2 + (p[1]-y)**2)**0.5)
+    return None
 
 def main():
     screen_width, screen_height = pyautogui.size()
-    step = 50  # Increased step size for faster movement
+    action_points = []
 
-    print("Hold ALT and use ARROW keys to move the mouse.")
+    print("Hold ALT and use ARROW keys to move the mouse to nearest action point.")
     print("ALT + Insert key for left click.")
-    print("ALT + Home key to move to nearest action point.")
+    print("ALT + Page Down to refresh action points.")
     print("Press 'ALT + q' to quit.")
 
     while True:
@@ -59,20 +72,24 @@ def main():
                 pyautogui.click()
             elif keyboard.is_pressed('pagedown'):
                 screen = capture_screen()
-                x, y = find_nearest_action_point(screen)
-                smooth_move(x, y)
-            elif keyboard.is_pressed('up'):
-                x, y = pyautogui.position()
-                smooth_move(x, max(0, y - step))
-            elif keyboard.is_pressed('down'):
-                x, y = pyautogui.position()
-                smooth_move(x, min(screen_height, y + step))
-            elif keyboard.is_pressed('left'):
-                x, y = pyautogui.position()
-                smooth_move(max(0, x - step), y)
-            elif keyboard.is_pressed('right'):
-                x, y = pyautogui.position()
-                smooth_move(min(screen_width, x + step), y)
+                action_points = find_action_points(screen)
+                print(f"Found {len(action_points)} action points")
+            else:
+                current_pos = pyautogui.position()
+                direction = None
+                if keyboard.is_pressed('up'):
+                    direction = 'up'
+                elif keyboard.is_pressed('down'):
+                    direction = 'down'
+                elif keyboard.is_pressed('left'):
+                    direction = 'left'
+                elif keyboard.is_pressed('right'):
+                    direction = 'right'
+                
+                if direction:
+                    nearest_point = find_nearest_point_in_direction(current_pos, action_points, direction)
+                    if nearest_point:
+                        smooth_move(*nearest_point)
 
         cv2.waitKey(1)
 
