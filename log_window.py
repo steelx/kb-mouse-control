@@ -10,7 +10,7 @@ def get_caps_lock_state():
 class LogWindow:
     def __init__(self, queue):
         self.root = tk.Tk()
-        self.root.title("Mouse Control Log")
+        self.root.title("KB Mouse Control")
         self.root.geometry("300x150")
         self.root.attributes('-topmost', True)
         
