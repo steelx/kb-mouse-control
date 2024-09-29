@@ -1,4 +1,5 @@
-import tkinter as tk
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QLabel
+from PyQt5.QtCore import Qt, QTimer
 from queue import Empty
 import ctypes
 
@@ -7,46 +8,55 @@ def get_caps_lock_state():
     VK_CAPITAL = 0x14
     return hllDll.GetKeyState(VK_CAPITAL)
 
-class LogWindow:
+class LogWindow(QWidget):
     def __init__(self, queue):
-        self.root = tk.Tk()
-        self.root.title("KB Mouse Control")
-        self.root.geometry("300x150")
-        self.root.attributes('-topmost', True)
-        
-        self.log_text = tk.Text(self.root, height=5, width=40)
-        self.log_text.pack(pady=10)
-        
-        self.caps_lock_label = tk.Label(self.root, text="Caps Lock: OFF")
-        self.caps_lock_label.pack()
-        
+        super().__init__()
         self.queue = queue
-        self.update_gui()
+        self.setWindowTitle("KB Mouse Control")
+        self.setGeometry(100, 100, 300, 150)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint)
+
+        layout = QVBoxLayout()
+
+        self.log_text = QTextEdit(self)
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text)
+
+        self.caps_lock_label = QLabel("Caps Lock: OFF", self)
+        layout.addWidget(self.caps_lock_label)
+
+        self.setLayout(layout)
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_gui)
+        self.timer.start(100)
 
     def add_message(self, message):
         self.queue.put(message)
 
     def update_log(self, message):
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.see(tk.END)
-        if self.log_text.index('end-1c').split('.')[0] > '5':
-            self.log_text.delete('1.0', '2.0')
+        self.log_text.append(message)
+        self.log_text.ensureCursorVisible()
+        if self.log_text.document().lineCount() > 5:
+            cursor = self.log_text.textCursor()
+            cursor.movePosition(cursor.Start)
+            cursor.movePosition(cursor.Down, cursor.KeepAnchor)
+            cursor.removeSelectedText()
 
     def update_caps_lock_state(self):
         if get_caps_lock_state():
-            self.caps_lock_label.config(text="Caps Lock: ON")
+            self.caps_lock_label.setText("Caps Lock: ON")
         else:
-            self.caps_lock_label.config(text="Caps Lock: OFF")
+            self.caps_lock_label.setText("Caps Lock: OFF")
 
     def update_gui(self):
         try:
             while True:
                 message = self.queue.get_nowait()
                 if message == "QUIT":
-                    self.root.quit()
+                    self.close()
                     return
                 self.update_log(message)
         except Empty:
             pass
         self.update_caps_lock_state()
-        self.root.after(100, self.update_gui)

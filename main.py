@@ -3,7 +3,7 @@ import cv2
 import pyautogui
 import keyboard
 from queue import Queue
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 from log_window import LogWindow, get_caps_lock_state
 from screen import (
@@ -97,8 +97,10 @@ class MainThread(QThread):
 class MainWindow(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
+        self.app = QApplication(argv)
         self.message_queue = Queue()
         self.log_window = LogWindow(self.message_queue)
+        self.log_window.show()
         self.overlay = None
         self.main_thread = MainThread()
         self.main_thread.update_overlay_signal.connect(self.update_overlay)
@@ -106,9 +108,9 @@ class MainWindow(QApplication):
         self.main_thread.quit_signal.connect(self.quit)
         self.main_thread.start()
 
-        # Use a timer to keep the application running and update the log window
+        # Use a timer to keep the application running
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_log_window)
+        self.timer.timeout.connect(lambda: None)
         self.timer.start(100)
 
     def update_overlay(self, action_points):
@@ -132,20 +134,9 @@ class MainWindow(QApplication):
     def quit(self):
         if self.overlay:
             self.overlay.close()
-        self.log_window.root.quit()
-        self.log_window.root.destroy()
-        super().quit()
+        self.log_window.close()
+        self.app.quit()
 
 if __name__ == "__main__":
-    app = MainWindow(sys.argv)
-    # Create a timer to process Qt events
-    qt_timer = QTimer()
-    qt_timer.timeout.connect(app.processEvents)
-    qt_timer.start(20)  # Process Qt events every 20ms
-
-    # Run Tkinter main loop
-    app.log_window.root.mainloop()
-
-    # Clean up
-    app.quit()
-    sys.exit()
+    main_window = MainWindow(sys.argv)
+    sys.exit(main_window.app.exec_())
