@@ -1,11 +1,10 @@
-import time
+import sys
 import cv2
-import numpy as np
 import pyautogui
 import keyboard
-from mss import mss
 from queue import Queue
-import threading
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 from log_window import LogWindow, get_caps_lock_state
 from screen import (
     smooth_move,
@@ -13,102 +12,121 @@ from screen import (
     find_action_points,
     find_nearest_point_in_direction
 )
-from overlay import (
-    create_overlay,
-    update_overlay
-)
+from overlay import TransparentOverlay
 
-from PyQt5.QtWidgets import QApplication
+class MainThread(QThread):
+    update_overlay_signal = pyqtSignal(list)
+    log_signal = pyqtSignal(str)
+    quit_signal = pyqtSignal()
 
-def main(queue):
-    screen_width, screen_height = pyautogui.size()
-    step = 50  # Step size for incremental movement
-    action_points = []
-    x, y = pyautogui.position()
+    def __init__(self):
+        super().__init__()
+        self.running = True
 
-    overlay_app = None
-    overlay = None
+    def run(self):
+        screen_width, screen_height = pyautogui.size()
+        step = 50
+        action_points = []
+        last_caps_lock_state = False
 
-    queue.put("Mouse Control Started")
-    queue.put("Hold ALT and use ARROW keys to move the mouse.")
-    queue.put("Turn Caps Lock ON for action point movement.")
-    queue.put("ALT + Insert for left click.")
-    queue.put("ALT + Page Down to refresh action points.")
-    queue.put("Press 'ALT + q' to quit.")
+        self.log_signal.emit("Mouse Control Started")
+        self.log_signal.emit("Hold ALT and use ARROW keys to move the mouse.")
+        self.log_signal.emit("Turn Caps Lock ON for action point movement.")
+        self.log_signal.emit("ALT + Insert for left click.")
+        self.log_signal.emit("ALT + Page Down to refresh action points.")
+        self.log_signal.emit("Press 'ALT + q' to quit.")
 
-    while True:
-        caps_lock_state = get_caps_lock_state()
+        while self.running:
+            caps_lock_state = get_caps_lock_state()
 
-        if caps_lock_state and overlay is None:
-            overlay_app, overlay = create_overlay(action_points)
-        elif not caps_lock_state and overlay is not None:
-            overlay.hide()
-            overlay = None
+            if caps_lock_state != last_caps_lock_state:
+                if not caps_lock_state:
+                    self.update_overlay_signal.emit([])  # Clear overlay
+                last_caps_lock_state = caps_lock_state
 
-        if keyboard.is_pressed('alt'):
-            if keyboard.is_pressed('q'):
-                break
-            elif keyboard.is_pressed('insert'):
-                pyautogui.click()
-                queue.put("Left Click")
-            elif keyboard.is_pressed('pagedown'):
-                screen_area = capture_screen()
-                action_points = find_action_points(screen_area)
-                queue.put(f"Found {len(action_points)} action points")
-                if overlay:
-                    update_overlay(overlay, action_points)
-            elif keyboard.is_pressed('up') or keyboard.is_pressed('down') or \
-                 keyboard.is_pressed('left') or keyboard.is_pressed('right'):
+            if keyboard.is_pressed('alt'):
+                if keyboard.is_pressed('q'):
+                    self.running = False
+                    self.quit_signal.emit()
+                    break
+                elif keyboard.is_pressed('insert'):
+                    pyautogui.click()
+                    self.log_signal.emit("Left Click")
+                elif keyboard.is_pressed('pagedown'):
+                    screen_area = capture_screen()
+                    action_points = find_action_points(screen_area)
+                    self.log_signal.emit(f"Found {len(action_points)} action points")
+                    self.update_overlay_signal.emit(action_points)
+                elif keyboard.is_pressed('up') or keyboard.is_pressed('down') or \
+                    keyboard.is_pressed('left') or keyboard.is_pressed('right'):
 
-                current_pos = pyautogui.position()
-                direction = None
-                if keyboard.is_pressed('up'):
-                    direction = 'up'
-                elif keyboard.is_pressed('down'):
-                    direction = 'down'
-                elif keyboard.is_pressed('left'):
-                    direction = 'left'
-                elif keyboard.is_pressed('right'):
-                    direction = 'right'
+                    current_pos = pyautogui.position()
+                    direction = None
+                    if keyboard.is_pressed('up'): direction = 'up'
+                    elif keyboard.is_pressed('down'): direction = 'down'
+                    elif keyboard.is_pressed('left'): direction = 'left'
+                    elif keyboard.is_pressed('right'): direction = 'right'
 
-                if caps_lock_state and action_points:
-                    nearest_point = find_nearest_point_in_direction(current_pos, action_points, direction)
-                    if nearest_point:
-                        # Replace smooth_move with direct pyautogui.moveTo
-                        pyautogui.moveTo(*nearest_point)
-                        queue.put(f"Teleported to action point: {nearest_point}")
-                        time.sleep(0.1)  # Add a small delay
-                else:
-                    x, y = current_pos
-                    if direction == 'up':
-                        smooth_move(x, max(0, y - step))
-                    elif direction == 'down':
-                        smooth_move(x, min(screen_height, y + step))
-                    elif keyboard.is_pressed('left'):
-                        smooth_move(max(0, x - step), y)
-                    elif keyboard.is_pressed('right'):
-                        smooth_move(min(screen_width, x + step), y)
-                    queue.put(f"Moved {direction}")
+                    if caps_lock_state and action_points:
+                        nearest_point = find_nearest_point_in_direction(current_pos, action_points, direction)
+                        if nearest_point:
+                            pyautogui.moveTo(*nearest_point)
+                            self.log_signal.emit(f"Teleported to action point: {nearest_point}")
+                    else:
+                        x, y = current_pos
+                        if direction == 'up': smooth_move(x, max(0, y - step))
+                        elif direction == 'down': smooth_move(x, min(screen_height, y + step))
+                        elif direction == 'left': smooth_move(max(0, x - step), y)
+                        elif direction == 'right': smooth_move(min(screen_width, x + step), y)
+                        self.log_signal.emit(f"Moved {direction}")
 
-                if overlay is not None:
-                    update_overlay(overlay, action_points)
+                    self.update_overlay_signal.emit(action_points)
 
-        cv2.waitKey(1)
+            cv2.waitKey(1)
 
-    if overlay is not None:
-        overlay.hide()
+        self.log_signal.emit("Mouse Control Ended")
+        self.log_signal.emit("QUIT")
+        cv2.destroyAllWindows()
 
-    queue.put("Mouse Control Ended")
-    queue.put("QUIT")
-    cv2.destroyAllWindows()
+class MainWindow(QApplication):
+    def __init__(self, argv):
+        super().__init__(argv)
+        self.message_queue = Queue()
+        self.log_window = LogWindow(self.message_queue)
+        self.overlay = None
+        self.main_thread = MainThread()
+        self.main_thread.update_overlay_signal.connect(self.update_overlay)
+        self.main_thread.log_signal.connect(self.log_message)
+        self.main_thread.quit_signal.connect(self.quit)
+        self.main_thread.start()
+
+        # Use a timer to keep the application running
+        self.timer = QTimer()
+        self.timer.timeout.connect(lambda: None)
+        self.timer.start(100)
+
+    def update_overlay(self, action_points):
+        if not action_points:
+            if self.overlay:
+                self.overlay.hide()
+                self.overlay = None
+        else:
+            if self.overlay is None:
+                self.overlay = TransparentOverlay()
+            self.overlay.update_points(action_points)
+            self.overlay.show()
+
+    def log_message(self, message):
+        self.log_window.add_message(message)
+    
+    def quit(self):
+        if self.overlay:
+            self.overlay.close()
+        self.log_window.root.quit()
+        self.log_window.root.destroy()
+        super().quit()
 
 if __name__ == "__main__":
-    message_queue = Queue()
-    log_window = LogWindow(message_queue)
-    # Run the main function in a separate thread
-    main_thread = threading.Thread(target=main, args=(message_queue,))
-    main_thread.start()
-    # Run the GUI in the main thread
-    log_window.root.mainloop()
-    # Wait for the main thread to finish
-    main_thread.join()
+    app = MainWindow(sys.argv)
+    app.log_window.root.mainloop()
+    sys.exit(app.exec_())

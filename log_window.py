@@ -23,6 +23,9 @@ class LogWindow:
         self.queue = queue
         self.update_gui()
 
+    def add_message(self, message):
+        self.queue.put(message)
+
     def update_log(self, message):
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
