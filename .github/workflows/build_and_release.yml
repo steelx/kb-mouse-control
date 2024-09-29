@@ -25,8 +25,39 @@ jobs:
           pip install pyinstaller
           pip install -r requirements.txt
 
+      - name: Create version_info.txt
+        run: |
+          echo "VSVersionInfo(
+            ffi=FixedFileInfo(
+              filevers=(${{ github.event.inputs.release_tag.substring(1).replace('.', ', ') }}, 0),
+              prodvers=(${{ github.event.inputs.release_tag.substring(1).replace('.', ', ') }}, 0),
+              mask=0x3f,
+              flags=0x0,
+              OS=0x40004,
+              fileType=0x1,
+              subtype=0x0,
+              date=(0, 0)
+            ),
+            kids=[
+              StringFileInfo(
+                [
+                StringTable(
+                  u'040904B0',
+                  [StringStruct(u'CompanyName', u'Your Company Name'),
+                  StringStruct(u'FileDescription', u'KB Mouse Control'),
+                  StringStruct(u'FileVersion', u'${{ github.event.inputs.release_tag.substring(1) }}'),
+                  StringStruct(u'InternalName', u'kb_mouse_control'),
+                  StringStruct(u'LegalCopyright', u'\xa9 Your Name. All rights reserved.'),
+                  StringStruct(u'OriginalFilename', u'kb-mouse.exe'),
+                  StringStruct(u'ProductName', u'KB Mouse Control'),
+                  StringStruct(u'ProductVersion', u'${{ github.event.inputs.release_tag.substring(1) }}')])
+                ]),
+              VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+            ]
+          )" > version_info.txt
+
       - name: Build with PyInstaller
-        run: pyinstaller --onefile --noconsole main.py --name kb-mouse
+        run: pyinstaller --onefile --noconsole --icon=app_icon.ico --version-file=version_info.txt main.py --name kb-mouse
 
       - name: Create Release
         id: create_release

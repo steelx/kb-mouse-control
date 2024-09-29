@@ -20,7 +20,13 @@ if %errorlevel% neq 0 (
 )
 
 echo Building with PyInstaller...
-pyinstaller --onefile --noconsole main.py --name kb-mouse
+pyinstaller --name="KB Mouse Control" ^
+            --onefile ^
+            --windowed ^
+            --icon=app_icon.ico ^
+            --add-data "app_icon.ico;." ^
+            --version-file=version_info.txt ^
+            main.py
 
 if %errorlevel% neq 0 (
     echo Error building with PyInstaller. Exiting.
@@ -28,8 +34,6 @@ if %errorlevel% neq 0 (
 )
 
 echo Build successful. Executable should be in the dist folder.
-echo Testing executable...
-start "" "dist\kb-mouse.exe"
 
 echo Local build test complete.
 echo Deactivating virtual environment...
