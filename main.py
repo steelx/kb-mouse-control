@@ -74,8 +74,9 @@ def main(queue):
                 if caps_lock_state and action_points:
                     nearest_point = find_nearest_point_in_direction(current_pos, action_points, direction)
                     if nearest_point:
-                        smooth_move(*nearest_point)
-                        queue.put(f"Moved to action point: {nearest_point}")
+                        # Replace smooth_move with direct pyautogui.moveTo
+                        pyautogui.moveTo(*nearest_point)
+                        queue.put(f"Teleported to action point: {nearest_point}")
                         time.sleep(0.1)  # Add a small delay
                 else:
                     x, y = current_pos
