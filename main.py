@@ -40,8 +40,12 @@ class MainThread(QThread):
             caps_lock_state = get_caps_lock_state()
 
             if caps_lock_state != last_caps_lock_state:
-                if not caps_lock_state:
-                    self.update_overlay_signal.emit([])  # Clear overlay
+                if caps_lock_state:
+                    # Caps Lock turned on, show action points
+                    self.update_overlay_signal.emit(action_points)
+                else:
+                    # Caps Lock turned off, clear overlay
+                    self.update_overlay_signal.emit([])
                 last_caps_lock_state = caps_lock_state
 
             if keyboard.is_pressed('alt'):
@@ -72,6 +76,7 @@ class MainThread(QThread):
                         if nearest_point:
                             pyautogui.moveTo(*nearest_point)
                             self.log_signal.emit(f"Teleported to action point: {nearest_point}")
+                        self.update_overlay_signal.emit(action_points)
                     else:
                         x, y = current_pos
                         if direction == 'up': smooth_move(x, max(0, y - step))
@@ -79,8 +84,8 @@ class MainThread(QThread):
                         elif direction == 'left': smooth_move(max(0, x - step), y)
                         elif direction == 'right': smooth_move(min(screen_width, x + step), y)
                         self.log_signal.emit(f"Moved {direction}")
+                        self.update_overlay_signal.emit([])  # Clear overlay when Caps Lock is off
 
-                    self.update_overlay_signal.emit(action_points)
 
             cv2.waitKey(1)
 
@@ -88,6 +93,7 @@ class MainThread(QThread):
         self.log_signal.emit("QUIT")
         cv2.destroyAllWindows()
 
+# MainWindow class
 class MainWindow(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
@@ -100,9 +106,9 @@ class MainWindow(QApplication):
         self.main_thread.quit_signal.connect(self.quit)
         self.main_thread.start()
 
-        # Use a timer to keep the application running
+        # Use a timer to keep the application running and update the log window
         self.timer = QTimer()
-        self.timer.timeout.connect(lambda: None)
+        self.timer.timeout.connect(self.update_log_window)
         self.timer.start(100)
 
     def update_overlay(self, action_points):
@@ -117,8 +123,12 @@ class MainWindow(QApplication):
             self.overlay.show()
 
     def log_message(self, message):
-        self.log_window.add_message(message)
-    
+        self.message_queue.put(message)
+
+    def update_log_window(self):
+        self.log_window.update_gui()
+        self.log_window.root.update()
+
     def quit(self):
         if self.overlay:
             self.overlay.close()
@@ -128,5 +138,14 @@ class MainWindow(QApplication):
 
 if __name__ == "__main__":
     app = MainWindow(sys.argv)
+    # Create a timer to process Qt events
+    qt_timer = QTimer()
+    qt_timer.timeout.connect(app.processEvents)
+    qt_timer.start(20)  # Process Qt events every 20ms
+
+    # Run Tkinter main loop
     app.log_window.root.mainloop()
-    sys.exit(app.exec_())
+
+    # Clean up
+    app.quit()
+    sys.exit()
