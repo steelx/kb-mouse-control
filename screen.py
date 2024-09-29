@@ -41,21 +41,28 @@ def find_action_points(image):
 
     return action_points
 
-def find_nearest_point_in_direction(current_pos, action_points, direction, visible_area):
+def find_nearest_point_in_direction(current_pos, action_points, direction):
     x, y = current_pos
-    vx, vy, vw, vh = visible_area
     valid_points = []
 
     for point in action_points:
         px, py = point
-        if vx <= px < vx+vw and vy <= py < vy+vh:
-            if direction == 'up' and py < y:
+        if direction == 'up' and py < y:
+            valid_points.append(point)
+        elif direction == 'down' and py > y:
+            valid_points.append(point)
+        elif direction == 'left' and px < x:
+            valid_points.append(point)
+        elif direction == 'right' and px > x:
+            valid_points.append(point)
+
+    if not valid_points:
+        # If no points in the exact direction, consider points slightly off
+        for point in action_points:
+            px, py = point
+            if direction in ['up', 'down'] and abs(px - x) < 50:
                 valid_points.append(point)
-            elif direction == 'down' and py > y:
-                valid_points.append(point)
-            elif direction == 'left' and px < x:
-                valid_points.append(point)
-            elif direction == 'right' and px > x:
+            elif direction in ['left', 'right'] and abs(py - y) < 50:
                 valid_points.append(point)
 
     if valid_points:

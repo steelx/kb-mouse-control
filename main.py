@@ -1,3 +1,4 @@
+import time
 import cv2
 import numpy as np
 import pyautogui
@@ -23,7 +24,7 @@ def main(queue):
     screen_width, screen_height = pyautogui.size()
     step = 50  # Step size for incremental movement
     action_points = []
-    visible_area = (0, 0, 500, 500)  # Initial visible area (x, y, width, height)
+    x, y = pyautogui.position()
 
     overlay_app = None
     overlay = None
@@ -51,12 +52,9 @@ def main(queue):
                 pyautogui.click()
                 queue.put("Left Click")
             elif keyboard.is_pressed('pagedown'):
-                current_x, current_y = pyautogui.position()
                 screen_area = capture_screen()
                 action_points = find_action_points(screen_area)
                 queue.put(f"Found {len(action_points)} action points")
-                # Update action points coordinates to screen coordinates
-                #action_points = [(x + max(0, current_x - 400), y + max(0, current_y - 400)) for x, y in action_points]
                 if overlay:
                     update_overlay(overlay, action_points)
             elif keyboard.is_pressed('up') or keyboard.is_pressed('down') or \
@@ -74,26 +72,22 @@ def main(queue):
                     direction = 'right'
 
                 if caps_lock_state and action_points:
-                    nearest_point = find_nearest_point_in_direction(current_pos, action_points, direction, visible_area)
+                    nearest_point = find_nearest_point_in_direction(current_pos, action_points, direction)
                     if nearest_point:
                         smooth_move(*nearest_point)
                         queue.put(f"Moved to action point: {nearest_point}")
+                        time.sleep(0.1)  # Add a small delay
                 else:
                     x, y = current_pos
-                    vx, vy, vw, vh = visible_area
                     if direction == 'up':
-                        smooth_move(x, max(vy, y - step))
+                        smooth_move(x, max(0, y - step))
                     elif direction == 'down':
-                        smooth_move(x, min(vy + vh, y + step))
+                        smooth_move(x, min(screen_height, y + step))
                     elif keyboard.is_pressed('left'):
-                        smooth_move(max(vx, x - step), y)
+                        smooth_move(max(0, x - step), y)
                     elif keyboard.is_pressed('right'):
-                        smooth_move(min(vx + vw, x + step), y)
+                        smooth_move(min(screen_width, x + step), y)
                     queue.put(f"Moved {direction}")
-
-                # Update visible area based on current mouse position
-                x, y = pyautogui.position()
-                visible_area = (max(0, x - 250), max(0, y - 250), 500, 500)
 
                 if overlay is not None:
                     update_overlay(overlay, action_points)
