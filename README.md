@@ -10,7 +10,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## local build
+## Build exe file:
 
 ```bash
 ./test/local_build_test.bat
